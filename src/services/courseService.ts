@@ -51,7 +51,7 @@ IMPORTANT: Return ONLY the JSON object, no markdown code blocks, no explanations
     }
 };
 
-export const saveCourseToDB = async (courseData: any, userEmail: string, userName?: string) => {
+export const saveCourseToDB = async (courseData: any, userEmail: string, userName?: string, includeVideo: string = "Yes") => {
     const id = uuid4();
     try {
         await db.insert(CourseList).values({
@@ -63,7 +63,7 @@ export const saveCourseToDB = async (courseData: any, userEmail: string, userNam
             createdBy: userEmail,
             userName: userName || userEmail?.split('@')[0] || "User",
             userProfileImage: "",
-            includeVideo: "Yes",
+            includeVideo: includeVideo,
         });
         return id;
     } catch (error) {
@@ -76,73 +76,27 @@ export const generateChapterContent = async (chapter: any, course: any) => {
     const chapterName = chapter.name || chapter.chapter_name || chapter.Name || 'Chapter';
     const courseName = course.name || course.Name || 'Course';
 
-    const prompt = `Generate educational content for the chapter "${chapterName}" from the course "${courseName}".
+    const prompt = `Write educational content for "${chapterName}" from "${courseName}".
 
-Return ONLY a valid JSON object with this structure:
-{
-  "title": "${chapterName}",
-  "content": [
-    {"type": "text", "value": "explanation paragraph here"},
-    {"type": "code", "value": "code example here", "language": "python"}
-  ]
-}
+Write like a textbook with explanations and code examples.
+Include 2-3 code examples.
+Do NOT use JSON, markdown, or any formatting.
+Just write naturally.
 
-Rules:
-- Return ONLY the raw JSON object. Do not wrap it in markdown code blocks or any other text.
-- Do not use "type: value" strings. Use valid JSON.
-- Use \\n for newlines inside string values, NOT actual newlines.
-- Escape all double quotes inside strings with backslash.
-- Include 3-5 text sections with code examples.
-- Keep code examples short (under 10 lines each).`;
+Example:
+Python is a programming language. It is easy to learn.
+
+print("Hello World")
+x = 5
+
+Variables store data. You can use them in your code.`;
 
     try {
-        let result = await chatSession(prompt);
-        if (!result) return { title: chapterName, content: [{ type: "text", value: "Content generation failed." }] };
-
-        // Clean up the response
-        result = result.replace(/```json/g, '').replace(/```/g, '').trim();
-
-        // Try to extract JSON object if there's extra text around it
-        const jsonMatch = result.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            result = jsonMatch[0];
-        }
-
-        // Replace control characters
-        // eslint-disable-next-line no-control-regex
-        result = result.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-        // Replace actual newlines/tabs inside strings with escaped versions
-        result = result.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-
-        // Fix double-escaped sequences
-        result = result.replace(/\\\\n/g, '\\n').replace(/\\\\t/g, '\\t').replace(/\\\\r/g, '\\r');
-
-        console.log("Cleaned chapter content (first 200 chars):", result.substring(0, 200));
-
-        try {
-            return JSON.parse(result);
-        } catch (parseError) {
-            console.warn("First parse failed, attempting repair...", parseError);
-
-            // Attempt to fix common JSON issues
-            // Fix unescaped quotes inside values by finding the pattern
-            // Try a simpler approach: just return structured content from the raw text
-            return {
-                title: chapterName,
-                content: [
-                    { type: "text", value: result.substring(0, 2000).replace(/[{}[\]"]/g, '').trim() || "Content was generated but could not be parsed." }
-                ]
-            };
-        }
+        const result = await chatSession(prompt);
+        return result || "Content generation failed.";
     } catch (error) {
         console.error("Error generating chapter content:", error);
-        // Return fallback content instead of throwing
-        return {
-            title: chapterName,
-            content: [
-                { type: "text", value: "Content generation encountered an error. Please try again." }
-            ]
-        };
+        return "Content generation error. Please regenerate.";
     }
 }
 

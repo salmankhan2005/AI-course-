@@ -82,8 +82,19 @@ const CourseLayoutPage = () => {
         const chapter = courseData.chapters[i];
         setGeneratingChapter(i + 1);
         const content = await generateChapterContent(chapter, courseData);
-        const videos = await getVideos(`${courseData.name} ${chapter.name || chapter.chapter_name}`);
-        const videoId = videos[0]?.id?.videoId || "";
+        let videoId = "";
+
+        // Only fetch video if not explicitly disabled
+        // Only fetch video if not explicitly disabled
+        if (courseData?.includeVideo !== "No") {
+          const query = `${courseData.name} ${chapter.name || chapter.chapter_name}`;
+          console.log("Searching video for:", query);
+          const videos = await getVideos(query);
+          console.log("Videos found:", videos);
+          videoId = videos[0]?.id?.videoId || "";
+          console.log("Selected Video ID:", videoId);
+        }
+
         await saveChapterContentToDB(
           chapter.name || chapter.chapter_name || `Chapter ${i + 1}`,
           courseData.courseId,

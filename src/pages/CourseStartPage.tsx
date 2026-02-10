@@ -2,9 +2,15 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getCourseById, getChaptersByCourseId } from "@/services/courseService";
 import { ArrowLeft, PlayCircle, Copy, CheckCircle2, Loader2, Terminal, Play, BookOpen } from "lucide-react";
-import SyntaxHighlighter from 'react-syntax-highlighter/dist/esm/prism';
-import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import Editor from 'react-simple-code-editor';
+import { highlight, languages } from 'prismjs/components/prism-core';
+import 'prismjs/components/prism-clike';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-python';
+import 'prismjs/themes/prism-tomorrow.css';
 import { Button } from "@/components/ui/button";
+import ReactMarkdown from 'react-markdown';
+
 
 const CourseStartPage = () => {
   const { id } = useParams();
@@ -21,6 +27,8 @@ const CourseStartPage = () => {
   // Playground state
   const [runningCode, setRunningCode] = useState<number | null>(null);
   const [codeOutput, setCodeOutput] = useState<Record<number, string>>({});
+  const [editableContent, setEditableContent] = useState<any[]>([]);
+  const [codeTheme, setCodeTheme] = useState('dark');
 
   // Load course and chapters from DB
   useEffect(() => {
@@ -58,6 +66,53 @@ const CourseStartPage = () => {
     loadData();
   }, [id, location.state]);
 
+  // Sync content to editable state
+  useEffect(() => {
+    if (chapterContent) {
+      const parsed = parseContent(chapterContent);
+      setEditableContent(parsed);
+    } else {
+      setEditableContent([]);
+    }
+  }, [chapterContent]);
+
+  const parseContent = (content: any) => {
+    const text = typeof content === 'string' ? content : JSON.stringify(content);
+    const blocks: any[] = [];
+    const lines = text.split('\n');
+    let currentText = '';
+    let currentCode = '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Code: starts with code keywords or symbols, NOT regular sentences
+      const isCode = trimmed && (
+        /^(def |class |function |const |let |var |import |from |#include|public |private |if |for |while |return |print\(|console\.)/.test(trimmed) ||
+        /^[{}()\[\];]/.test(trimmed) ||
+        (currentCode && /^(\s+|\t)/.test(line) && trimmed) // indented continuation
+      );
+
+      if (isCode) {
+        if (currentText.trim()) {
+          blocks.push({ type: 'text', value: currentText.trim() });
+          currentText = '';
+        }
+        currentCode += line + '\n';
+      } else {
+        if (currentCode.trim()) {
+          blocks.push({ type: 'code', value: currentCode.trim(), language: 'python' });
+          currentCode = '';
+        }
+        currentText += line + '\n';
+      }
+    }
+
+    if (currentText.trim()) blocks.push({ type: 'text', value: currentText.trim() });
+    if (currentCode.trim()) blocks.push({ type: 'code', value: currentCode.trim(), language: 'python' });
+
+    return blocks.length ? blocks : [{ type: 'text', value: text }];
+  };
+
   const handleChapterClick = (index: number) => {
     setSelectedChapterIndex(index);
     setRunningCode(null); // Reset running state
@@ -81,106 +136,24 @@ const CourseStartPage = () => {
   const handleRunCode = (index: number) => {
     setRunningCode(index);
 
-    // Simulate execution
+    // Simulate execution of EDITED code
+    const codeToRun = editableContent[index]?.value || "";
     setTimeout(() => {
       setRunningCode(null);
       setCodeOutput(prev => ({
         ...prev,
-        [index]: "> Execution complete.\n> No errors found.\n> Program output will appear here in a real environment."
+        [index]: `> Executing code (Length: ${codeToRun.length})...\n> Output:\n> Hello from the simulated environment!`
       }));
     }, 1500);
   };
 
-  // Helper to parse content if it's a string or irregular structure
-  const parseChapterContent = (content: any) => {
-    if (!content) return [];
-
-    // 1. Array check
-    if (Array.isArray(content)) return content;
-
-    // 2. Object with content array
-    if (content.content && Array.isArray(content.content)) return content.content;
-
-    // 3. String that is valid JSON
-    if (typeof content === 'string') {
-      try {
-        const parsed = JSON.parse(content);
-        if (Array.isArray(parsed)) return parsed;
-        if (parsed.content && Array.isArray(parsed.content)) return parsed.content;
-      } catch (e) {
-        // Not JSON
-      }
-    }
-
-    // 4. Custom Format Parser (Fallback for "type: text, value: ..." format)
-    if (typeof content === 'string' && (content.includes('type: text') || content.includes('type: code') || content.includes('type:code'))) {
-      // Robust splitter considering loose format
-
-      // Strategy: 
-      // 1. Unescape \\n to \n globally first to handle literals? No, splitting might rely on them.
-      // Let's split by "type:".
-
-      const tokens = content.split(/(?=type:\s*(?:text|code))/i); // case insensitive for safety
-
-      const finalItems = tokens.filter(t => t.trim().length > 0).map(token => {
-        const lowerToken = token.toLowerCase();
-        const isCode = lowerToken.includes('type: code');
-        // Also check for "type:code" without space
-        if (!isCode && !lowerToken.includes('type: text')) return null; // Garbage token
-
-        const valueStart = token.toLowerCase().indexOf('value:');
-        if (valueStart === -1) return null;
-
-        let value = token.substring(valueStart + 6).trim();
-
-        // Cleanup suffix
-        let language = 'javascript';
-        if (isCode) {
-          const langIndex = token.toLowerCase().lastIndexOf('language:');
-          if (langIndex !== -1) {
-            // Extract language from original token (to preserve case if needed, though usually python/js is lowercase)
-            // langIndex is from start of token.
-            language = token.substring(langIndex + 9).trim().replace(/,$/, '');
-            // Value ends before language
-            // We need to cut value accurately. 
-            // value substring started at valueStart + 6.
-            // The generic length of value is (langIndex - (valueStart + 6))
-            // But we must handle comma before language:
-            let endIndex = langIndex - (valueStart + 6);
-            value = value.substring(0, endIndex).trim();
-          }
-        }
-
-        // Remove trailing comma from value if present
-        if (value.endsWith(',')) value = value.slice(0, -1);
-
-        // CRITICAL FIX: Unescape \\n literals to actual newlines for code blocks
-        // Since the AI generated string likely has literal "\n" characters
-        if (isCode) {
-          value = value.replace(/\\n/g, '\n').replace(/\\"/g, '"');
-        } else {
-          // For text, we might want to keep control or not. 
-          // The text renderer splits by \\n, so we keep \\n as is!
-          // Wait, my text renderer uses `item.value.split('\\n')`.
-          // So I should NOT unescape text value.
-        }
-
-        return {
-          type: isCode ? 'code' : 'text',
-          value: value,
-          language: language
-        };
-      }).filter(item => item !== null);
-
-      if (finalItems.length > 0) return finalItems;
-    }
-
-    // 5. Final Fallback
-    const textContent = typeof content === 'string' ? content : JSON.stringify(content);
-    return [{ type: 'text', value: textContent }];
+  const handleCodeChange = (index: number, newCode: string) => {
+    const newContent = [...editableContent];
+    newContent[index] = { ...newContent[index], value: newCode };
+    setEditableContent(newContent);
   };
 
-  const parsedContent = parseChapterContent(chapterContent);
+
 
   if (loading) {
     return (
@@ -252,8 +225,9 @@ const CourseStartPage = () => {
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto bg-background p-6 md:p-8">
         <div className="max-w-4xl mx-auto">
-          {/* Video Player */}
-          {videoId ? (
+          {/* Video Player - Only show if video is enabled for this course */}
+          {/* Video Player - Only show if video is enabled AND available */}
+          {course?.includeVideo?.toLowerCase() !== "no" && videoId && (
             <div className="aspect-video w-full rounded-xl overflow-hidden shadow-lg mb-8 border border-border">
               <iframe
                 width="100%"
@@ -264,13 +238,6 @@ const CourseStartPage = () => {
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               ></iframe>
-            </div>
-          ) : (
-            <div className="aspect-video w-full rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mb-8 border border-border dashed border-2">
-              <div className="text-center">
-                <PlayCircle className="h-12 w-12 text-muted-foreground mx-auto mb-2 opacity-50" />
-                <p className="text-muted-foreground font-medium">No video available for this chapter</p>
-              </div>
             </div>
           )}
 
@@ -290,7 +257,7 @@ const CourseStartPage = () => {
               </div>
             ) : (
               <div className="space-y-8">
-                {parsedContent.map((item: any, index: number) => (
+                {editableContent.map((item: any, index: number) => (
                   <div key={index}>
                     {/* Concept Card */}
                     {item.type === 'text' && (
@@ -303,10 +270,12 @@ const CourseStartPage = () => {
                           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
                             <BookOpen className="h-5 w-5 text-primary" />
                           </div>
-                          <div className="flex-1 leading-relaxed text-foreground/90 text-base md:text-lg space-y-2">
-                            {typeof item.value === 'string' ? item.value.split('\\n').map((line: string, i: number) => (
-                              <p key={i} className="min-h-[1em]">{line}</p>
-                            )) : item.value}
+                          <div className="flex-1 leading-relaxed text-foreground/90 text-base md:text-lg">
+                            <div className="markdown-content prose-p:my-2 prose-headings:text-foreground prose-headings:font-bold prose-code:text-primary prose-code:bg-primary/10 prose-code:px-1 prose-code:rounded prose-pre:bg-[#1e1e2e] prose-pre:p-4 prose-pre:rounded-xl prose-pre:border prose-pre:border-border">
+                              <ReactMarkdown>
+                                {typeof item.value === 'string' ? item.value.replace(/\\n/g, '\n') : String(item.value)}
+                              </ReactMarkdown>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -314,16 +283,16 @@ const CourseStartPage = () => {
 
                     {/* Code Playground */}
                     {item.type === 'code' && (
-                      <div className="rounded-xl overflow-hidden border border-border shadow-xl my-8 bg-[#1e1e2e]">
+                      <div className={`rounded-xl overflow-hidden border shadow-xl my-8 ${codeTheme === 'dark' ? 'bg-[#1e1e2e] border-border' : 'bg-white border-gray-300'}`}>
                         {/* MacOS-style Toolbar */}
-                        <div className="px-4 py-3 flex items-center justify-between border-b border-white/10 bg-[#2b2d31]">
+                        <div className={`px-4 py-3 flex items-center justify-between border-b ${codeTheme === 'dark' ? 'border-white/10 bg-[#2b2d31]' : 'border-gray-200 bg-gray-100'}`}>
                           <div className="flex items-center gap-2">
                             <div className="flex gap-1.5">
                               <div className="w-3 h-3 rounded-full bg-[#ff5f56]"></div>
                               <div className="w-3 h-3 rounded-full bg-[#ffbd2e]"></div>
                               <div className="w-3 h-3 rounded-full bg-[#27c93f]"></div>
                             </div>
-                            <span className="ml-4 text-xs font-mono text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+                            <span className={`ml-4 text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 ${codeTheme === 'dark' ? 'text-muted-foreground/60' : 'text-gray-500'}`}>
                               <Terminal className="h-3 w-3" />
                               main.{item.language === 'python' ? 'py' : 'js'}
                             </span>
@@ -331,8 +300,15 @@ const CourseStartPage = () => {
 
                           <div className="flex items-center gap-2">
                             <button
+                              onClick={() => setCodeTheme(codeTheme === 'dark' ? 'light' : 'dark')}
+                              className={`p-1.5 rounded-md transition-colors ${codeTheme === 'dark' ? 'text-muted-foreground hover:text-white hover:bg-white/10' : 'text-gray-600 hover:text-black hover:bg-gray-200'}`}
+                              title="Toggle theme"
+                            >
+                              {codeTheme === 'dark' ? '☀️' : '🌙'}
+                            </button>
+                            <button
                               onClick={() => handleCopyCode(item.value)}
-                              className="text-muted-foreground hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/10"
+                              className={`p-1.5 rounded-md transition-colors ${codeTheme === 'dark' ? 'text-muted-foreground hover:text-white hover:bg-white/10' : 'text-gray-600 hover:text-black hover:bg-gray-200'}`}
                               title="Copy code"
                             >
                               {copied ? <CheckCircle2 className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
@@ -354,36 +330,35 @@ const CourseStartPage = () => {
                         </div>
 
                         {/* Editor Area */}
-                        <div className="relative">
-                          <SyntaxHighlighter
-                            language={item.language || "javascript"}
-                            style={dracula}
-                            customStyle={{
-                              margin: 0,
-                              padding: '1.5rem',
-                              borderRadius: 0,
-                              fontSize: '0.95rem',
-                              lineHeight: '1.6',
-                              background: 'transparent' // Use container bg
+                        <div className="relative font-mono text-sm">
+                          <Editor
+                            value={item.value}
+                            onValueChange={(code) => handleCodeChange(index, code)}
+                            highlight={(code) => highlight(code, item.language === 'python' ? languages.python : languages.js || languages.javascript, item.language || 'javascript')}
+                            padding={20}
+                            style={{
+                              fontFamily: '"Fira code", "Fira Mono", monospace',
+                              fontSize: 14,
+                              backgroundColor: 'transparent',
+                              minHeight: '100px',
+                              lineHeight: '1.5',
+                              color: codeTheme === 'dark' ? '#f8f8f2' : '#24292e'
                             }}
-                            showLineNumbers={true}
-                            wrapLines={true}
-                          >
-                            {item.value}
-                          </SyntaxHighlighter>
+                            textareaClassName="focus:outline-none"
+                          />
                         </div>
 
                         {/* Simulated Output Panel */}
                         {(runningCode === index || codeOutput[index]) && (
-                          <div className="border-t border-white/10 bg-[#1e1e2e]">
-                            <div className="px-4 py-2 bg-[#2b2d31] flex items-center justify-between">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Output Terminal</span>
+                          <div className={`border-t ${codeTheme === 'dark' ? 'border-white/10 bg-[#1e1e2e]' : 'border-gray-200 bg-gray-50'}`}>
+                            <div className={`px-4 py-2 flex items-center justify-between ${codeTheme === 'dark' ? 'bg-[#2b2d31]' : 'bg-gray-100'}`}>
+                              <span className={`text-[10px] uppercase font-bold tracking-widest ${codeTheme === 'dark' ? 'text-muted-foreground' : 'text-gray-600'}`}>Output Terminal</span>
                             </div>
-                            <div className="p-4 font-mono text-sm text-[#27c93f] min-h-[80px]">
+                            <div className={`p-4 font-mono text-sm min-h-[80px] ${codeTheme === 'dark' ? 'text-[#27c93f]' : 'text-green-700'}`}>
                               {runningCode === index ? (
                                 <div className="flex items-center gap-2">
-                                  <span className="w-2 h-4 bg-[#27c93f] animate-pulse"></span>
-                                  <span className="text-muted-foreground">Compiling...</span>
+                                  <span className={`w-2 h-4 animate-pulse ${codeTheme === 'dark' ? 'bg-[#27c93f]' : 'bg-green-600'}`}></span>
+                                  <span className={codeTheme === 'dark' ? 'text-muted-foreground' : 'text-gray-600'}>Compiling...</span>
                                 </div>
                               ) : (
                                 <pre className="whitespace-pre-wrap font-mono">{codeOutput[index]}</pre>

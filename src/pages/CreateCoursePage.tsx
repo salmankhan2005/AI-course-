@@ -4,7 +4,8 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/configs/firebase";
 import { generateCourseLayout, saveCourseToDB } from "@/services/courseService";
 import { Loader2 } from "lucide-react";
-import { LayoutGrid, MapPin, Settings, Code, Heart, Palette, ChevronLeft } from "lucide-react";
+import { LayoutGrid, MapPin, Settings, Code, Heart, Palette, ChevronLeft, Sparkles } from "lucide-react";
+import { chatSession } from "@/configs/AiModel";
 import Logo from "@/components/Logo";
 
 const categories = [
@@ -31,7 +32,25 @@ const CreateCoursePage = () => {
   const [chapters, setChapters] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [generatingDesc, setGeneratingDesc] = useState(false);
   const [user] = useAuthState(auth);
+
+  const handleGenerateDescription = async () => {
+    if (!topic || topic.trim().length < 3) return;
+
+    setGeneratingDesc(true);
+    try {
+      const prompt = `Generate a brief, engaging course description (max 50 words) for a course about: "${topic}". Focus on what the student will learn.`;
+      const result = await chatSession(prompt);
+      if (result) {
+        setDescription(result.trim().replace(/^"|"$/g, ''));
+      }
+    } catch (error) {
+      console.error("Error generating description:", error);
+    } finally {
+      setGeneratingDesc(false);
+    }
+  };
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -52,7 +71,7 @@ const CreateCoursePage = () => {
 
       // Save to DB (background operation)
       // @ts-ignore
-      const id = await saveCourseToDB(result, user?.email || "", user?.displayName || "");
+      const id = await saveCourseToDB(result, user?.email || "", user?.displayName || "", addVideo || "Yes");
       console.log("Saved course with ID:", id);
 
       setLoading(false);
@@ -148,9 +167,21 @@ const CreateCoursePage = () => {
               />
             </div>
             <div>
-              <label className="text-sm text-foreground mb-2 block">
-                📝 Tell us more about your course, what you want to include in the course (Optional)
-              </label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm text-foreground block">
+                  📝 Tell us more about your course, what you want to include in the course (Optional)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGenerateDescription}
+                  disabled={generatingDesc || !topic || topic.length < 3}
+                  className="text-xs flex items-center gap-1 text-primary border border-primary/20 bg-primary/5 px-2 py-1 rounded-md hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Auto-generate description with AI"
+                >
+                  {generatingDesc ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  Generate with AI
+                </button>
+              </div>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
