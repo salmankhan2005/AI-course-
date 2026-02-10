@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 26% 14%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 26% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 26% 14%;
+
+    --primary: 255 96% 67%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 228 33% 97%;
+    --secondary-foreground: 220 26% 14%;
+
+    --muted: 228 33% 97%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 255 96% 67%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 255 96% 67%;
+
+    --radius: 0.625rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 9% 46%;
+    --sidebar-primary: 255 96% 67%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 255 96% 97%;
+    --sidebar-accent-foreground: 255 96% 67%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 255 96% 67%;
+
+    /* Custom tokens */
+    --purple-base: 255 96% 67%;
+    --purple-light: 255 96% 92%;
+    --purple-dark: 255 80% 55%;
+    --gray-bg: 228 33% 98%;
+    --text-primary: 220 26% 14%;
+    --text-secondary: 220 9% 46%;
+    --text-muted: 220 9% 64%;
+    --avatar-bg: 150 50% 30%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Josefin Sans', sans-serif;
+  }
+}
+
+@layer utilities {
+  .hex-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23e5e7eb' fill-opacity='0.4'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+}
