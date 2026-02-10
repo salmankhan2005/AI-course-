@@ -207,15 +207,15 @@ const CourseLayoutPage = () => {
                 {courseData.category}
               </div>
 
-              {/* Start button - only if content generated */}
-              {canEdit && coursePublished && (
-                <button
-                  onClick={() => navigate(`/course/${courseData.courseId}/start`, { state: { courseData } })}
-                  className="w-full mt-4 px-12 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors block shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
-                >
-                  Start Learning
-                </button>
-              )}
+        {/* Start button - only if content generated */}
+        {coursePublished && (
+          <button
+            onClick={() => navigate(`/course/${courseData.courseId}/start`, { state: { courseData } })}
+            className="w-full mt-4 px-12 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors block shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+          >
+            Start Learning
+          </button>
+        )}
             </div>
 
             {/* Right side - Banner image */}
